@@ -26,6 +26,7 @@ load("@bazel_sonarqube//:defs.bzl", "sonarqube")
 
 sonarqube(
     name = "sonarqube",
+    testonly = True,
     srcs = [],
     coverage_report = ":coverage_report",
     modules = {
@@ -33,8 +34,7 @@ sonarqube(
     },
     project_key = "com.example.project:project",
     project_name = "My Project",
-    scm_info = [":git"],
+    scm_dir = "../../.git",
     tags = ["manual"],
     targets = [],
-    testonly = True,
 )

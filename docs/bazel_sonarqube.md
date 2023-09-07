@@ -5,9 +5,9 @@
 ## sonarqube
 
 <pre>
-sonarqube(<a href="#sonarqube-name">name</a>, <a href="#sonarqube-project_key">project_key</a>, <a href="#sonarqube-scm_info">scm_info</a>, <a href="#sonarqube-coverage_report">coverage_report</a>, <a href="#sonarqube-project_name">project_name</a>, <a href="#sonarqube-srcs">srcs</a>, <a href="#sonarqube-source_encoding">source_encoding</a>,
-          <a href="#sonarqube-targets">targets</a>, <a href="#sonarqube-test_srcs">test_srcs</a>, <a href="#sonarqube-test_targets">test_targets</a>, <a href="#sonarqube-test_reports">test_reports</a>, <a href="#sonarqube-modules">modules</a>, <a href="#sonarqube-sonar_scanner">sonar_scanner</a>,
-          <a href="#sonarqube-sq_properties_template">sq_properties_template</a>, <a href="#sonarqube-tags">tags</a>, <a href="#sonarqube-visibility">visibility</a>)
+sonarqube(<a href="#sonarqube-name">name</a>, <a href="#sonarqube-project_key">project_key</a>, <a href="#sonarqube-coverage_report">coverage_report</a>, <a href="#sonarqube-project_name">project_name</a>, <a href="#sonarqube-srcs">srcs</a>, <a href="#sonarqube-source_encoding">source_encoding</a>, <a href="#sonarqube-targets">targets</a>,
+          <a href="#sonarqube-test_srcs">test_srcs</a>, <a href="#sonarqube-test_targets">test_targets</a>, <a href="#sonarqube-test_reports">test_reports</a>, <a href="#sonarqube-modules">modules</a>, <a href="#sonarqube-sonar_scanner">sonar_scanner</a>, <a href="#sonarqube-sq_properties_template">sq_properties_template</a>, <a href="#sonarqube-tags">tags</a>,
+          <a href="#sonarqube-visibility">visibility</a>, <a href="#sonarqube-git_repository_name">git_repository_name</a>, <a href="#sonarqube-kwargs">kwargs</a>)
 </pre>
 
 A runnable rule to execute SonarQube analysis.
@@ -23,7 +23,6 @@ to perform the analysis.
 | :-------------: | :-------------: | :-------------: |
 | name |  Name of the target.   |  none |
 | project_key |  SonarQube project key, e.g. <code>com.example.project:module</code>.   |  none |
-| scm_info |  Source code metadata. For example, to include Git data from     the workspace root, create a filegroup:<br><br>    <code>filegroup(name = "git_info", srcs = glob([".git/**"], exclude = [".git/**/*[*"]))</code><br><br>    and reference it as <code>scm_info = [":git_info"],</code>.   |  none |
 | coverage_report |  Coverage file in SonarQube generic coverage report     format. This can be created using the generator from this project     (see the README for example usage).   |  <code>None</code> |
 | project_name |  SonarQube project display name.   |  <code>None</code> |
 | srcs |  Project sources to be analysed by SonarQube.   |  <code>[]</code> |
@@ -37,6 +36,8 @@ to perform the analysis.
 | sq_properties_template |  Template file for <code>sonar-project.properties</code>.   |  <code>"@bazel_sonarqube//:sonar-project.properties.tpl"</code> |
 | tags |  Bazel target tags, e.g. <code>["manual"]</code>.   |  <code>[]</code> |
 | visibility |  Bazel target visibility, e.g. <code>["//visibility:public"]</code>.   |  <code>[]</code> |
+| git_repository_name |  Name of the repository known by git e.g "foo" (default "origin")   |  <code>"origin"</code> |
+| kwargs |  <p align="center"> - </p>   |  none |
 
 
 <a name="#sq_project"></a>
@@ -45,7 +46,7 @@ to perform the analysis.
 
 <pre>
 sq_project(<a href="#sq_project-name">name</a>, <a href="#sq_project-project_key">project_key</a>, <a href="#sq_project-project_name">project_name</a>, <a href="#sq_project-srcs">srcs</a>, <a href="#sq_project-source_encoding">source_encoding</a>, <a href="#sq_project-targets">targets</a>, <a href="#sq_project-test_srcs">test_srcs</a>, <a href="#sq_project-test_targets">test_targets</a>,
-           <a href="#sq_project-test_reports">test_reports</a>, <a href="#sq_project-modules">modules</a>, <a href="#sq_project-sq_properties_template">sq_properties_template</a>, <a href="#sq_project-tags">tags</a>, <a href="#sq_project-visibility">visibility</a>)
+           <a href="#sq_project-test_reports">test_reports</a>, <a href="#sq_project-modules">modules</a>, <a href="#sq_project-sq_properties_template">sq_properties_template</a>, <a href="#sq_project-tags">tags</a>, <a href="#sq_project-visibility">visibility</a>, <a href="#sq_project-kwargs">kwargs</a>)
 </pre>
 
 A configuration rule to generate SonarQube analysis properties.
@@ -73,5 +74,6 @@ project.
 | sq_properties_template |  Template file for <code>sonar-project.properties</code>.   |  <code>"@bazel_sonarqube//:sonar-project.properties.tpl"</code> |
 | tags |  Bazel target tags, e.g. <code>["manual"]</code>.   |  <code>[]</code> |
 | visibility |  Bazel target visibility, e.g. <code>["//visibility:public"]</code>.   |  <code>[]</code> |
+| kwargs |  <p align="center"> - </p>   |  none |
 
 

@@ -108,7 +108,6 @@ sonarqube(
         "//path/to/component:sq_mycomponent": "path/to/component",
     },
     coverage_report = ":coverage_report",
-    scm_info = [":git"],
     tags = ["manual"],
     testonly = True,
 )

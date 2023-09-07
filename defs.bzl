@@ -2,6 +2,8 @@
 Rules to analyse Bazel projects with SonarQube.
 """
 
+load("@bazel_skylib//lib:paths.bzl", "paths")
+
 def sonarqube_coverage_generator_binary(name = None):
     native.java_binary(
         name = "SonarQubeCoverageGenerator",
@@ -146,15 +148,23 @@ done
 
 echo '... done.'
 
-{sonar_scanner} ${{1+"$@"}} -Dproject.settings={sq_properties_file}
+rm -rf {scm_basename} 2>/dev/null
+ln -s $BUILD_WORKSPACE_DIRECTORY/{scm_path} .
+
+{sonar_scanner} ${{1+"$@"}} \
+    -Dproject.settings={sq_properties_file}
 
 echo 'Restoring original bazel runfiles symlinks...'
+
 for f in {srcs} {test_srcs}
 do
     rm $f
     mv orig/$f $f
 done
+
 rm -rf orig
+rm {scm_basename}
+
 echo '... done.'
 """
 
@@ -191,14 +201,16 @@ def _sonarqube_impl(ctx):
         content = _sonarqube_template.format(
             sq_properties_file = sq_properties_file.short_path,
             sonar_scanner = ctx.executable.sonar_scanner.short_path,
-            srcs = ' '.join(src_paths),
-            test_srcs = ' '.join(test_src_paths),
+            srcs = " ".join(src_paths),
+            test_srcs = " ".join(test_src_paths),
+            scm_path = ctx.attr.scm_dir,
+            scm_basename = paths.basename(ctx.attr.scm_dir),
         ),
         is_executable = True,
     )
 
     return [DefaultInfo(
-        runfiles = ctx.runfiles(files = [ctx.executable.sonar_scanner] + ctx.files.scm_info).merge(ctx.attr.sonar_scanner[DefaultInfo].default_runfiles).merge(local_runfiles).merge(module_runfiles),
+        runfiles = ctx.runfiles(files = [ctx.executable.sonar_scanner]).merge(ctx.attr.sonar_scanner[DefaultInfo].default_runfiles).merge(local_runfiles).merge(module_runfiles),
     )]
 
 _COMMON_ATTRS = dict(dict(), **{
@@ -218,8 +230,8 @@ _COMMON_ATTRS = dict(dict(), **{
 _sonarqube = rule(
     attrs = dict(_COMMON_ATTRS, **{
         "coverage_report": attr.label(allow_single_file = True, mandatory = False),
-        "scm_info": attr.label_list(allow_files = True),
         "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "host"),
+        "scm_dir": attr.string(default = ".git"),
     }),
     fragments = ["jvm"],
     host_fragments = ["jvm"],
@@ -230,7 +242,6 @@ _sonarqube = rule(
 def sonarqube(
         name,
         project_key,
-        scm_info,
         coverage_report = None,
         project_name = None,
         srcs = [],
@@ -253,12 +264,6 @@ def sonarqube(
     Args:
         name: Name of the target.
         project_key: SonarQube project key, e.g. `com.example.project:module`.
-        scm_info: Source code metadata. For example, to include Git data from
-            the workspace root, create a filegroup:
-
-            `filegroup(name = "git_info", srcs = glob([".git/**"], exclude = [".git/**/*[*"]))`
-
-            and reference it as `scm_info = [":git_info"],`.
         coverage_report: Coverage file in SonarQube generic coverage report
             format. This can be created using the generator from this project
             (see the README for example usage).
@@ -288,6 +293,7 @@ def sonarqube(
 
             **Note:** this requires manually executing `bazel test` or `bazel
             coverage` before running the `sonarqube` target.
+        scm_dir: Path holding the root directory for your SCM, defaults to .git
         sonar_scanner: Bazel binary target to execute the SonarQube CLI Scanner.
         sq_properties_template: Template file for `sonar-project.properties`.
         tags: Bazel target tags, e.g. `["manual"]`.
@@ -297,7 +303,6 @@ def sonarqube(
         name = name,
         project_key = project_key,
         project_name = project_name,
-        scm_info = scm_info,
         srcs = srcs,
         source_encoding = source_encoding,
         targets = targets,
@@ -311,7 +316,7 @@ def sonarqube(
         sq_properties = "sonar-project.properties",
         tags = tags,
         visibility = visibility,
-        **kwargs,
+        **kwargs
     )
 
 def _sq_project_impl(ctx):

@@ -21,7 +21,6 @@ sonarqube(
     coverage_report = "//:coverage_report",
     project_key = "com.example.separate:separate",
     project_name = "My Project with Separate sonarqube rule",
-    scm_info = ["//:git"],
     tags = ["manual"],
     testonly = True,
 )
