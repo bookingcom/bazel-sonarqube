@@ -5,10 +5,7 @@ bzl_library(
     name = "bzl",
     srcs = ["defs.bzl"],
     visibility = ["//visibility:public"],
-    deps = [
-        "@bazel_skylib//lib:versions",
-        "@bazel_version",
-    ],
+    deps = [],
 )
 
 exports_files([
