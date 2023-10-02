@@ -172,13 +172,13 @@ do
 done
 
 rm -rf orig
-rm {scm_basename}
+rm -rf {scm_basename}
 
 echo '... done.'
 """
 
 def _sonarqube_impl(ctx):
-    sq_properties_file = ctx.actions.declare_file("sonar-project.properties")
+    sq_properties_file = ctx.outputs.sq_properties
 
     local_runfiles = _build_sonar_project_properties(ctx, sq_properties_file, "sonarqube")
 
@@ -336,7 +336,7 @@ def sonarqube(
         coverage_report = coverage_report,
         sonar_scanner = sonar_scanner,
         sq_properties_template = sq_properties_template,
-        sq_properties = "sonar-project.properties",
+        sq_properties = kwargs.pop("sq_properties", "sonar-project.properties"),
         tags = tags,
         visibility = visibility,
         **kwargs
