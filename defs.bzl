@@ -122,6 +122,7 @@ def _build_sonar_project_properties(ctx, sq_properties_file, rule):
             "{MODULES}": ",".join(ctx.attr.modules.values()),
             "{TEST_REPORTS}": test_reports_path,
             "{COVERAGE_REPORT}": coverage_report_path,
+            "{EXTRA_ARGUMENTS}": "\n".join([ "%s=%s" % (k, v) for k,v in ctx.attr.extra_arguments.items() ]),
         },
         is_executable = False,
     )
@@ -245,7 +246,8 @@ _COMMON_ATTRS = dict(dict(), **{
     "sq_properties_template": attr.label(allow_single_file = True, default = "@bazel_sonarqube//:sonar-project.properties.tpl"),
     "sq_properties": attr.output(),
     "extra_symlinks": attr.label_keyed_string_dict(default = {}),
-    "extra_runfiles": attr.label_list(default = [], providers = [DefaultInfo]),
+    "extra_runfiles": attr.label_list(default = [], providers = [DefaultInfo], allow_files = True),
+    "extra_arguments": attr.string_dict(default = {})
 })
 
 _sonarqube = rule(

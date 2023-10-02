@@ -12,3 +12,5 @@ sonar.modules={MODULES}
 sonar.junit.reportPaths={TEST_REPORTS}
 
 sonar.coverageReportPaths={COVERAGE_REPORT}
+
+{EXTRA_ARGUMENTS}
