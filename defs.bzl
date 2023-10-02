@@ -3,14 +3,22 @@ Rules to analyse Bazel projects with SonarQube.
 """
 
 load("@bazel_skylib//lib:paths.bzl", "paths")
+load("@bazel_skylib//lib:versions.bzl", "versions")
+load("@bazel-version//:defs.bzl", _bazel_version = "VERSION")
 
 def sonarqube_coverage_generator_binary(name = None):
+    srcs = [
+        "src/main/java/com/google/devtools/coverageoutputgenerator/SonarQubeCoverageReportPrinter.java",
+    ]
+    if versions.is_at_least(threshold = "6.0", version = _bazel_version):
+        srcs = ["src/main/java/com/google/devtools/coverageoutputgenerator/SonarQubeCoverageGenerator.java"] + srcs
+    elif versions.is_at_least(threshold = "4.0", version = _bazel_version):
+        srcs = ["src/bazel4/java/com/google/devtools/coverageoutputgenerator/SonarQubeCoverageGenerator.java"] + srcs
+    else:
+        fail("bazel %s not supported" % _bazel_version)
     native.java_binary(
         name = "SonarQubeCoverageGenerator",
-        srcs = [
-            "src/main/java/com/google/devtools/coverageoutputgenerator/SonarQubeCoverageGenerator.java",
-            "src/main/java/com/google/devtools/coverageoutputgenerator/SonarQubeCoverageReportPrinter.java",
-        ],
+        srcs = srcs,
         main_class = "com.google.devtools.coverageoutputgenerator.SonarQubeCoverageGenerator",
         deps = ["@remote_coverage_tools//:all_lcov_merger_lib"],
     )

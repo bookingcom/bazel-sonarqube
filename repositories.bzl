@@ -1,6 +1,13 @@
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
+def _bazel_version_impl(ctx):
+    ctx.file("WORKSPACE", "workspace(name = \"{name}\")\n".format(name = ctx.name), executable = False)
+    ctx.file("BUILD.bazel", "", executable = False)
+    ctx.file("defs.bzl", "VERSION='%s'" % native.bazel_version, executable = False)
+
+_bazel_version = repository_rule(implementation = _bazel_version_impl)
+
 def bazel_sonarqube_repositories(
         sonar_scanner_cli_version = "3.3.0.1492",
         sonar_scanner_cli_sha256 = "0fabd3fa2e10bbfc5cdf64765ff35e88e7937e48aad51d84401b9f36dbde3678",
@@ -26,4 +33,9 @@ def bazel_sonarqube_repositories(
             "https://github.com/bazelbuild/bazel-skylib/releases/download/%s/bazel-skylib-%s.tar.gz" % (bazel_skylib_version, bazel_skylib_version),
         ],
         sha256 = bazel_skylib_sha256,
+    )
+
+    maybe(
+        _bazel_version,
+        name = "bazel-version",
     )
