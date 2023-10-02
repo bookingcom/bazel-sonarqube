@@ -216,10 +216,21 @@ def _sonarqube_impl(ctx):
         ),
         is_executable = True,
     )
+    runfiles = ctx.runfiles(
+        files = [ctx.executable.sonar_scanner],
+        symlinks = ctx.attr.extra_symlinks,
+    ).merge(
+        ctx.attr.sonar_scanner[DefaultInfo].default_runfiles,
+    ).merge(
+        local_runfiles,
+    ).merge(
+        module_runfiles,
+    )
 
-    return [DefaultInfo(
-        runfiles = ctx.runfiles(files = [ctx.executable.sonar_scanner]).merge(ctx.attr.sonar_scanner[DefaultInfo].default_runfiles).merge(local_runfiles).merge(module_runfiles),
-    )]
+    for r in ctx.attr.extra_runfiles:
+        runfiles = runfiles.merge(ctx.runfiles(files = r[DefaultInfo].files.to_list()))
+
+    return [DefaultInfo(runfiles = runfiles)]
 
 _COMMON_ATTRS = dict(dict(), **{
     "project_key": attr.string(mandatory = True),
@@ -233,6 +244,8 @@ _COMMON_ATTRS = dict(dict(), **{
     "test_reports": attr.label_list(allow_files = True, default = []),
     "sq_properties_template": attr.label(allow_single_file = True, default = "@bazel_sonarqube//:sonar-project.properties.tpl"),
     "sq_properties": attr.output(),
+    "extra_symlinks": attr.label_keyed_string_dict(default = {}),
+    "extra_runfiles": attr.label_list(default = [], providers = [DefaultInfo]),
 })
 
 _sonarqube = rule(
