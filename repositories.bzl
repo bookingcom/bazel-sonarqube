@@ -11,8 +11,8 @@ _bazel_version = repository_rule(implementation = _bazel_version_impl)
 def bazel_sonarqube_repositories(
         sonar_scanner_cli_version = "3.3.0.1492",
         sonar_scanner_cli_sha256 = "0fabd3fa2e10bbfc5cdf64765ff35e88e7937e48aad51d84401b9f36dbde3678",
-        bazel_skylib_version = "1.0.3",
-        bazel_skylib_sha256 = "1c531376ac7e5a180e0237938a2536de0c54d93f5c278634818e0efc952dd56c"):
+        bazel_skylib_version = "1.4.2",
+        bazel_skylib_sha256 = "66ffd9315665bfaafc96b52278f57c7e2dd09f5ede279ea6d39b2be471e7e3aa"):
     maybe(
         http_archive,
         name = "org_sonarsource_scanner_cli_sonar_scanner_cli",
