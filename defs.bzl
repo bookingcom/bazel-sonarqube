@@ -251,7 +251,7 @@ _COMMON_ATTRS = dict(dict(), **{
 _sonarqube = rule(
     attrs = dict(_COMMON_ATTRS, **{
         "coverage_report": attr.label(allow_single_file = True, mandatory = False),
-        "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "host"),
+        "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "exec"),
         "scm_dir": attr.string(default = ".git"),
     }),
     fragments = ["jvm"],
