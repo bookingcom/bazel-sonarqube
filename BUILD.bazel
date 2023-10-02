@@ -1,5 +1,5 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
-load("//:defs.bzl", "sonarqube_coverage_generator_binary")
+load("@bazel_sonarqube//:defs.bzl", "sonarqube_coverage_generator_binary")
 
 bzl_library(
     name = "bzl",
