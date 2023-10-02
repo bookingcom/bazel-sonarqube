@@ -158,7 +158,11 @@ done
 echo '... done.'
 
 rm -rf {scm_basename} 2>/dev/null
-ln -s $BUILD_WORKSPACE_DIRECTORY/{scm_path} .
+cp -r $BUILD_WORKSPACE_DIRECTORY/{scm_path} .
+
+if [[ "{scm_basename}" == ".git" ]]; then
+    git update-index --index-version 3
+fi
 
 {sonar_scanner} ${{1+"$@"}} \
     -Dproject.settings={sq_properties_file}
