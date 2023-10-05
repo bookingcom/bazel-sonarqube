@@ -3,3 +3,4 @@
 *.iml
 bazel-*
 .scannerwork
+.bazelrc.user
