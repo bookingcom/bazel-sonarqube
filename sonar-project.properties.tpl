@@ -6,6 +6,7 @@ sonar.tests={TEST_SOURCES}
 sonar.sourceEncoding={SOURCE_ENCODING}
 sonar.java.binaries={JAVA_BINARIES}
 sonar.java.libraries={JAVA_LIBRARIES}
+sonar.java.test.libraries={JAVA_TEST_LIBRARIES}
 
 sonar.modules={MODULES}
 

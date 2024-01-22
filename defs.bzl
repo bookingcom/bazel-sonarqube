@@ -2,9 +2,9 @@
 Rules to analyse Bazel projects with SonarQube.
 """
 
+load("@bazel-version//:defs.bzl", _bazel_version = "VERSION")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//lib:versions.bzl", "versions")
-load("@bazel-version//:defs.bzl", _bazel_version = "VERSION")
 
 def sonarqube_coverage_generator_binary(name = None):
     srcs = [
@@ -111,6 +111,9 @@ def _test_targets_aspect_impl(target, ctx):
 
     if ctx.rule.kind.endswith("_test"):
         direct.append(target)
+        #for dep in ctx.rule.attr.deps:
+        #    print(dep)
+        #    transitive.append(dep)
 
     if hasattr(ctx.rule.attr, "tests"):
         for dep in ctx.rule.attr.tests:
@@ -124,6 +127,36 @@ test_targets_aspect = aspect(
     implementation = _test_targets_aspect_impl,
     attr_aspects = ["tests"],
 )
+
+TargetDepsInfo = provider(
+    fields = {
+        "deps": "depset of targets",
+    },
+)
+
+def _test_targets_deps_aspect_impl(_, ctx):
+    transitive = []
+    direct = []
+
+    if ctx.rule.kind == "java_library":
+        print("ignoring", ctx.rule.attr)
+    elif ctx.rule.kind == "jvm_import":
+        direct.extend(ctx.rule.attr.jars)
+    elif ctx.rule.kind == "java_test":
+        for dep in ctx.rule.attr.deps:
+            if TargetDepsInfo in dep:
+                transitive.append(dep[TargetDepsInfo].deps)
+    else:
+        fail("Don't know what to do with %s kind" % ctx.rule.kind)
+
+    return TargetDepsInfo(deps = depset(direct = direct, transitive = transitive))
+
+# This aspect is for collecting test targets dependencies
+test_targets_deps_aspect = aspect(
+    implementation = _test_targets_deps_aspect_impl,
+    attr_aspects = ["deps"],
+)
+
 
 def _get_list_of_unique_files(orig, extra):
     out = []
@@ -191,26 +224,37 @@ def _get_java_files(java_targets):
         "deps_jars": depset(transitive = [t.transitive_runtime_jars for t in java_targets]),
     }
 
-_sonarqube_template = """
+_sonarqube_template = """\
 #!/bin/bash
 
 set -euo pipefail
 
 CWD=$(pwd)
 
+TEMPDIR=`mktemp -d -t sonarqube.XXXXXX`
+function cleanup {{
+    if [ ! -n "${{SONARQUBE_KEEP_TEMP:-}}" ]; then
+        rm -rf $TEMPDIR
+    else
+        echo "temporary files available at $TEMPDIR"
+    fi
+}}
+trap cleanup EXIT
+
+pushd $TEMPDIR
+
 echo 'Dereferencing bazel runfiles symlinks for accurate SCM resolution...'
 
-for f in {srcs} {test_srcs}
-do
-    mkdir -p $(dirname orig/$f)
-    mv $f orig/$f
-    cp -L orig/$f $f
-done
+mkdir -p {scm_prefix}
+
+cp -rL $CWD/{workspace_name}/* {scm_prefix}/
 
 echo '... done.'
 
 rm -rf {scm_basename} 2>/dev/null
 cp -r $BUILD_WORKSPACE_DIRECTORY/{scm_path} .
+
+pushd {scm_prefix}
 
 if [[ "{scm_basename}" == ".git" ]]; then
     git update-index --index-version 3
@@ -226,19 +270,10 @@ if [[ ! -z "{java_binaries_path}" ]]; then
     popd
 fi
 
-{sonar_scanner} ${{1+"$@"}} \
-    -Dproject.settings={sq_properties_file}
+$CWD/{sonar_scanner} ${{1+"$@"}} \
+    -Dproject.settings=$CWD/{sq_properties_file}
 
-echo 'Restoring original bazel runfiles symlinks...'
-
-for f in {srcs} {test_srcs}
-do
-    rm $f
-    mv orig/$f $f
-done
-
-rm -rf orig
-rm -rf {scm_basename}
+popd
 
 echo '... done.'
 """
@@ -321,7 +356,7 @@ _COMMON_ATTRS = dict(dict(), **{
     "targets": attr.label_list(default = [], aspects = [source_info_aspect]),
     "modules": attr.label_keyed_string_dict(default = {}),
     "test_srcs": attr.label_list(allow_files = True, default = []),
-    "test_targets": attr.label_list(default = [], aspects = [test_targets_aspect, source_info_aspect]),
+    "test_targets": attr.label_list(default = [], aspects = [test_targets_aspect, test_targets_deps_aspect, source_info_aspect]),
     "test_reports": attr.label_list(allow_files = True, default = []),
     "sq_properties_template": attr.label(allow_single_file = True, default = "@bazel_sonarqube//:sonar-project.properties.tpl"),
     "sq_properties": attr.output(),
@@ -335,6 +370,7 @@ _sonarqube = rule(
         "coverage_report": attr.label(allow_single_file = True, mandatory = False),
         "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "exec"),
         "scm_dir": attr.string(default = ".git"),
+        "scm_prefix": attr.string(default = "."),
     }),
     fragments = ["jvm"],
     host_fragments = ["jvm"],
@@ -522,6 +558,10 @@ def _sonarqube_maven_style_impl(ctx):
     java_files = _get_java_files([t for t in ctx.attr.targets if t[JavaInfo]])
 
     extra_arguments = dict(ctx.attr.extra_arguments)
+    test_deps = []
+    for x in ctx.attr.test_targets:
+        for y in x[TargetDepsInfo].deps.to_list():
+            test_deps.extend(y[DefaultInfo].files.to_list())
 
     ctx.actions.expand_template(
         template = ctx.file.sq_properties_template,
@@ -537,19 +577,19 @@ def _sonarqube_maven_style_impl(ctx):
             "{MODULES}": ",".join(ctx.attr.modules.values()),
             "{TEST_REPORTS}": test_reports_path,
             "{COVERAGE_REPORT}": coverage_report_path,
+            "{JAVA_TEST_LIBRARIES}": ",".join([j.path for j in test_deps]),
             "{EXTRA_ARGUMENTS}": "\n".join([ "%s=%s" % (k, v) for k,v in extra_arguments.items() ]),
         },
         is_executable = False,
     )
 
-    # for module in ctx.attr.modules.keys():
-    #     for t in module[SqProjectInfo].srcs:
-    #         for f in t[DefaultInfo].files.to_list():
-    #             src_paths.append(f.short_path)
+    sources = []
+    for x in ctx.attr.targets:
+        sources.extend(x[SourceInfo].source_files.to_list())
 
-    #     for t in module[SqProjectInfo].test_srcs:
-    #         for f in t[DefaultInfo].files.to_list():
-    #             test_src_paths.append(f.short_path)
+    test_sources = []
+    for x in ctx.attr.test_targets:
+        test_sources.extend(x[SourceInfo].source_files.to_list())
 
     java_runtime = ctx.attr._jdk[java_common.JavaRuntimeInfo]
     jar_path = "%s/bin/jar" % java_runtime.java_home
@@ -559,15 +599,15 @@ def _sonarqube_maven_style_impl(ctx):
         content = _sonarqube_template.format(
             sq_properties_file = sq_properties_file.short_path,
             sonar_scanner = ctx.executable.sonar_scanner.short_path,
-            srcs = "", # ctx.attr.src_path,
-            test_srcs = "", # ctx.attr.test_path,
-            #srcs = " ".join(src_paths),
-            #test_srcs = " ".join(test_src_paths),
+            srcs = " ".join([x.short_path for x in sources]),
+            test_srcs = " ".join([x.short_path for x in sources]),
             java_binaries_path = "classes/main",
             java_binaries = ",".join([j.short_path for j in java_files["output_jars"].to_list()]),
             scm_path = ctx.attr.scm_dir,
             scm_basename = paths.basename(ctx.attr.scm_dir),
             jar_path = jar_path,
+            workspace_name = ctx.label.workspace_name,
+            scm_prefix = ctx.attr.scm_prefix
         ),
         is_executable = True,
     )
@@ -587,7 +627,7 @@ def _sonarqube_maven_style_impl(ctx):
         module_runfiles = module_runfiles.merge(module[DefaultInfo].default_runfiles)
 
     runfiles = ctx.runfiles(
-        files = [ctx.executable.sonar_scanner, sq_properties_file ] + sources + test_sources + coverage_report_runfiles,
+        files = [ctx.executable.sonar_scanner, sq_properties_file ] + sources + test_sources + coverage_report_runfiles + test_deps,
         symlinks = ctx.attr.extra_symlinks,
     ).merge(
         ctx.attr.sonar_scanner[DefaultInfo].default_runfiles,
@@ -612,6 +652,7 @@ sonarqube_maven_style = rule(
         "coverage_report": attr.label(allow_single_file = True, mandatory = False),
         "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "exec"),
         "scm_dir": attr.string(default = ".git"),
+        "scm_prefix": attr.string(default = "." ),
         "_jdk": attr.label(
             default = "@bazel_tools//tools/jdk:current_java_runtime",
             providers = [java_common.JavaRuntimeInfo],

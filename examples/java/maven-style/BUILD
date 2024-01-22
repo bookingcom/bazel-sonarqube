@@ -34,6 +34,7 @@ sonarqube_maven_style(
     testonly = True,
     sq_properties = "sonar-project.properties",
     scm_dir = "../../.git",
+    scm_prefix = "examples/java",
     extra_arguments = {
         "sonar.organization": "bookingcom-1"
     }
