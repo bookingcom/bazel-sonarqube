@@ -111,9 +111,6 @@ def _test_targets_aspect_impl(target, ctx):
 
     if ctx.rule.kind.endswith("_test"):
         direct.append(target)
-        #for dep in ctx.rule.attr.deps:
-        #    print(dep)
-        #    transitive.append(dep)
 
     if hasattr(ctx.rule.attr, "tests"):
         for dep in ctx.rule.attr.tests:
@@ -233,28 +230,26 @@ CWD=$(pwd)
 
 TEMPDIR=`mktemp -d -t sonarqube.XXXXXX`
 function cleanup {{
-    if [ ! -n "${{SONARQUBE_KEEP_TEMP:-}}" ]; then
+    rv=$?
+    if [ $rv == 0 ] && [ ! -n "${{SONARQUBE_KEEP_TEMP:-}}" ]; then
         rm -rf $TEMPDIR
     else
         echo "temporary files available at $TEMPDIR"
     fi
+    exit $rv
 }}
 trap cleanup EXIT
 
 pushd $TEMPDIR
 
-echo 'Dereferencing bazel runfiles symlinks for accurate SCM resolution...'
+cp -rL $CWD/../* .
 
-mkdir -p {scm_prefix}
+mkdir -p {workspace_name}/{scm_prefix}
 
-cp -rL $CWD/{workspace_name}/* {scm_prefix}/
-
-echo '... done.'
+pushd {workspace_name}
 
 rm -rf {scm_basename} 2>/dev/null
 cp -r $BUILD_WORKSPACE_DIRECTORY/{scm_path} .
-
-pushd {scm_prefix}
 
 if [[ "{scm_basename}" == ".git" ]]; then
     git update-index --index-version 3
@@ -545,7 +540,21 @@ def sq_project(
         **kwargs
     )
 
-JAVA_TOOLCHAIN = "@bazel_tools//tools/jdk:current_host_java_runtime"
+def _prefixed_path(ctx, path):
+    scm_prefix = ctx.attr.scm_prefix
+
+    if scm_prefix:
+        scm_prefix = scm_prefix + "/"
+
+    return scm_prefix + ctx.label.package + "/" + path
+
+def _get_target_deps_after_aspect(targets):
+    out = []
+    for x in targets:
+        for y in x[TargetDepsInfo].deps.to_list():
+            out.extend(y[DefaultInfo].files.to_list())
+    return out
+
 def _sonarqube_maven_style_impl(ctx):
     test_reports_path, _ = _get_test_reports(ctx)
 
@@ -558,27 +567,27 @@ def _sonarqube_maven_style_impl(ctx):
     java_files = _get_java_files([t for t in ctx.attr.targets if t[JavaInfo]])
 
     extra_arguments = dict(ctx.attr.extra_arguments)
-    test_deps = []
-    for x in ctx.attr.test_targets:
-        for y in x[TargetDepsInfo].deps.to_list():
-            test_deps.extend(y[DefaultInfo].files.to_list())
+
+    deps = java_files["deps_jars"].to_list()
+
+    test_deps = _get_target_deps_after_aspect(ctx.attr.test_targets)
 
     ctx.actions.expand_template(
         template = ctx.file.sq_properties_template,
         output = sq_properties_file,
         substitutions = {
+            "{COVERAGE_REPORT}": coverage_report_path,
+            "{EXTRA_ARGUMENTS}": "\n".join([ "%s=%s" % (k, v) for k,v in extra_arguments.items() ]),
+            "{JAVA_BINARIES}": "classes/main",
+            "{JAVA_LIBRARIES}": ",".join([j.short_path for j in deps]),
+            "{JAVA_TEST_LIBRARIES}": ",".join([j.short_path for j in test_deps]),
+            "{MODULES}": ",".join(ctx.attr.modules.values()),
             "{PROJECT_KEY}": ctx.attr.project_key,
             "{PROJECT_NAME}": ctx.attr.project_name,
-            "{SOURCES}": ctx.label.package + "/" + ctx.attr.src_path,
-            "{TEST_SOURCES}": ctx.label.package + "/" + ctx.attr.test_path,
             "{SOURCE_ENCODING}": ctx.attr.source_encoding,
-            "{JAVA_BINARIES}": "classes/main",
-            "{JAVA_LIBRARIES}": ",".join([j.short_path for j in java_files["deps_jars"].to_list()]),
-            "{MODULES}": ",".join(ctx.attr.modules.values()),
+            "{SOURCES}": _prefixed_path(ctx, ctx.attr.src_path),
             "{TEST_REPORTS}": test_reports_path,
-            "{COVERAGE_REPORT}": coverage_report_path,
-            "{JAVA_TEST_LIBRARIES}": ",".join([j.path for j in test_deps]),
-            "{EXTRA_ARGUMENTS}": "\n".join([ "%s=%s" % (k, v) for k,v in extra_arguments.items() ]),
+            "{TEST_SOURCES}": _prefixed_path(ctx, ctx.attr.test_path),
         },
         is_executable = False,
     )
@@ -606,7 +615,7 @@ def _sonarqube_maven_style_impl(ctx):
             scm_path = ctx.attr.scm_dir,
             scm_basename = paths.basename(ctx.attr.scm_dir),
             jar_path = jar_path,
-            workspace_name = ctx.label.workspace_name,
+            workspace_name = ctx.label.workspace_name or ctx.workspace_name,
             scm_prefix = ctx.attr.scm_prefix
         ),
         is_executable = True,
@@ -627,7 +636,7 @@ def _sonarqube_maven_style_impl(ctx):
         module_runfiles = module_runfiles.merge(module[DefaultInfo].default_runfiles)
 
     runfiles = ctx.runfiles(
-        files = [ctx.executable.sonar_scanner, sq_properties_file ] + sources + test_sources + coverage_report_runfiles + test_deps,
+        files = [ctx.executable.sonar_scanner, sq_properties_file ] + sources + test_sources + coverage_report_runfiles + deps + test_deps,
         symlinks = ctx.attr.extra_symlinks,
     ).merge(
         ctx.attr.sonar_scanner[DefaultInfo].default_runfiles,
