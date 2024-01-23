@@ -4,7 +4,11 @@ java_library(
     name = "app",
     srcs = [
         "src/main/java/com/maven/MavenApp.java"
-    ]
+    ],
+    deps = [
+        "@maven//:ch_qos_logback_logback_core",
+        "@maven//:org_slf4j_slf4j_api",
+    ],
 )
 
 
@@ -16,6 +20,7 @@ java_test(
         "@maven//:junit_junit",
     ],
     size = "small",
+    test_class = "com.maven.MavenAppTest",
 )
 
 sonarqube_maven_style(
@@ -33,8 +38,6 @@ sonarqube_maven_style(
     tags = ["manual"],
     testonly = True,
     sq_properties = "sonar-project.properties",
-    scm_dir = "../../.git",
-    scm_prefix = "examples/java",
     extra_arguments = {
         "sonar.organization": "bookingcom-1"
     }
