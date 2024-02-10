@@ -135,16 +135,16 @@ def _test_targets_deps_aspect_impl(_, ctx):
     transitive = []
     direct = []
 
-    if ctx.rule.kind == "java_library":
-        print("ignoring", ctx.rule.attr)
-    elif ctx.rule.kind == "jvm_import":
+    if ctx.rule.kind == "jvm_import":
         direct.extend(ctx.rule.attr.jars)
     elif ctx.rule.kind == "java_test":
         for dep in ctx.rule.attr.deps:
             if TargetDepsInfo in dep:
                 transitive.append(dep[TargetDepsInfo].deps)
+    elif ctx.rule.kind.endswith("_library"):
+        pass
     else:
-        fail("Don't know what to do with %s kind" % ctx.rule.kind)
+        print("Don't know what to do with %s kind" % ctx.rule.kind)
 
     return TargetDepsInfo(deps = depset(direct = direct, transitive = transitive))
 
