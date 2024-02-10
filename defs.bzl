@@ -268,6 +268,8 @@ fi
 $CWD/{sonar_scanner} ${{1+"$@"}} \
     -Dproject.settings=$CWD/{sq_properties_file}
 
+cp -r .scannerwork $CWD/.scannerwork
+
 popd
 
 echo '... done.'
