@@ -100,10 +100,11 @@ def _get_test_reports(ctx):
     return test_reports_path, test_reports_runfiles
 
 def _get_coverage_report(ctx, parent_path):
-    coverage_report = getattr(ctx.attr, "coverage_report", [])
-    if not coverage_report:
+    coverage_reports = getattr(ctx.files.coverage_report, "coverage_report", [])
+    if not coverage_reports:
         return "", []
-    return parent_path + ctx.file.coverage_report.short_path, [ctx.file.coverage_report]
+    coverage_report = coverage_reports.to_list()[0]
+    return parent_path + coverage_report.short_path, [coverage_report]
 
 def _test_targets_aspect_impl(target, ctx):
     transitive = []
@@ -660,7 +661,7 @@ sonarqube_maven_style = rule(
     attrs = dict(_sonarqube_maven_style_attrs, **{
         "src_path": attr.string(default = "src/main/java"),
         "test_path": attr.string(default = "src/test/java"),
-        "coverage_report": attr.label(allow_single_file = True, mandatory = False),
+        "coverage_report": attr.label(allow_files = True, mandatory = False),
         "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "exec"),
         "scm_dir": attr.string(default = ".git"),
         "scm_prefix": attr.string(default = "." ),
