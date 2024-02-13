@@ -266,6 +266,8 @@ if [[ ! -z "{java_binaries_path}" ]]; then
     popd
 fi
 
+find . -name '*.srcjar' -exec $CWD/{jar_path} -xf {{}} \\;
+
 $CWD/{sonar_scanner} ${{1+"$@"}} \
     -Dproject.settings=$CWD/{sq_properties_file}
 
