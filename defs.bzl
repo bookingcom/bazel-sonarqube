@@ -100,10 +100,10 @@ def _get_test_reports(ctx):
     return test_reports_path, test_reports_runfiles
 
 def _get_coverage_report(ctx, parent_path):
-    coverage_reports = getattr(ctx.files.coverage_report, "coverage_report", [])
-    if not coverage_reports:
+    coverage_reports = list(ctx.files.coverage_report)
+    if len(coverage_reports) < 1:
         return "", []
-    coverage_report = coverage_reports.to_list()[0]
+    coverage_report = coverage_reports[0]
     return parent_path + coverage_report.short_path, [coverage_report]
 
 def _test_targets_aspect_impl(target, ctx):
