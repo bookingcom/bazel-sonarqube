@@ -259,7 +259,8 @@ fi
 if [[ ! -z "{java_binaries_path}" ]]; then
     mkdir -p {java_binaries_path}
     pushd {java_binaries_path}
-    for jar in {java_binaries}; do
+    java_binaries="{java_binaries}"
+    for jar in ${{java_binaries//,/ }}; do
         $CWD/{jar_path} -xf "$CWD/$jar"
         rm -rf META-INF
     done
