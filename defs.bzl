@@ -546,14 +546,6 @@ def sq_project(
         **kwargs
     )
 
-def _prefixed_path(ctx, path):
-    scm_prefix = ctx.attr.scm_prefix
-
-    if scm_prefix:
-        scm_prefix = scm_prefix + "/"
-
-    return scm_prefix + ctx.label.package + "/" + path
-
 def _get_target_deps_after_aspect(targets):
     out = []
     for x in targets:
@@ -571,53 +563,73 @@ def _sonarqube_maven_style_impl(ctx):
     sq_properties_file = ctx.outputs.sq_properties
 
     java_files = _get_java_files([t for t in ctx.attr.targets if t[JavaInfo]])
-
-    extra_arguments = dict(ctx.attr.extra_arguments)
-
     deps = java_files["deps_jars"].to_list()
-
     test_deps = _get_target_deps_after_aspect(ctx.attr.test_targets)
+
+    srcs = _get_list_of_unique_files(ctx.attr.srcs, ctx.attr.targets)
+    test_srcs = _get_list_of_unique_files(ctx.files.test_srcs, ctx.attr.test_targets)
 
     ctx.actions.expand_template(
         template = ctx.file.sq_properties_template,
         output = sq_properties_file,
         substitutions = {
             "{COVERAGE_REPORT}": coverage_report_path,
-            "{EXTRA_ARGUMENTS}": "\n".join([ "%s=%s" % (k, v) for k,v in extra_arguments.items() ]),
+            "{EXTRA_ARGUMENTS}": "\n".join([ "%s=%s" % (k, v) for k,v in ctx.attr.extra_arguments.items() ]),
             "{JAVA_BINARIES}": "classes/main",
-            "{JAVA_LIBRARIES}": ",".join([j.short_path for j in deps]),
-            "{JAVA_TEST_LIBRARIES}": ",".join([j.short_path for j in test_deps]),
+            "{JAVA_LIBRARIES}": ",".join([parent_path + j.short_path for j in deps]),
+            "{JAVA_TEST_LIBRARIES}": ",".join([parent_path + j.short_path for j in test_deps]),
             "{MODULES}": ",".join(ctx.attr.modules.values()),
             "{PROJECT_KEY}": ctx.attr.project_key,
             "{PROJECT_NAME}": ctx.attr.project_name,
             "{SOURCE_ENCODING}": ctx.attr.source_encoding,
-            "{SOURCES}": _prefixed_path(ctx, ctx.attr.src_path),
+            "{SOURCES}": ",".join([parent_path + f.short_path for f in srcs]),
+            "{TEST_SOURCES}": ",".join([parent_path + f.short_path for f in test_srcs]),
             "{TEST_REPORTS}": test_reports_path,
-            "{TEST_SOURCES}": _prefixed_path(ctx, ctx.attr.test_path),
         },
         is_executable = False,
     )
 
-    sources = []
-    for x in ctx.attr.targets:
-        sources.extend(x[SourceInfo].source_files.to_list())
-
-    test_sources = []
-    for x in ctx.attr.test_targets:
-        test_sources.extend(x[SourceInfo].source_files.to_list())
-
     java_runtime = ctx.attr._jdk[java_common.JavaRuntimeInfo]
     jar_path = "%s/bin/jar" % java_runtime.java_home
+
+    src_paths = []
+    extra_sources = []
+    for t in ctx.attr.srcs:
+        for f in t[DefaultInfo].files.to_list():
+            src_paths.append(f.short_path)
+    for t in ctx.attr.targets:
+        for f in t[SourceInfo].source_files.to_list():
+            src_paths.append(f.short_path)
+        extra_sources.extend(t[SourceInfo].source_files.to_list())
+
+    test_src_paths = []
+    for t in ctx.attr.test_srcs:
+        for f in t[DefaultInfo].files.to_list():
+            test_src_paths.append(f.short_path)
+    for t in ctx.attr.test_targets:
+        for f in t[SourceInfo].source_files.to_list():
+            test_src_paths.append(f.short_path)
+        extra_sources.extend(t[SourceInfo].source_files.to_list())
+
+
+    for module in ctx.attr.modules.keys():
+        for t in module[SqProjectInfo].srcs:
+            for f in t[DefaultInfo].files.to_list():
+                src_paths.append(f.short_path)
+
+        for t in module[SqProjectInfo].test_srcs:
+            for f in t[DefaultInfo].files.to_list():
+                test_src_paths.append(f.short_path)
 
     ctx.actions.write(
         output = ctx.outputs.executable,
         content = _sonarqube_template.format(
             sq_properties_file = sq_properties_file.short_path,
             sonar_scanner = ctx.executable.sonar_scanner.short_path,
-            srcs = " ".join([x.short_path for x in sources]),
-            test_srcs = " ".join([x.short_path for x in sources]),
+            srcs = " ".join(src_paths),
+            test_srcs = " ".join(test_src_paths),
             java_binaries_path = "classes/main",
-            java_binaries = ",".join([j.short_path for j in java_files["output_jars"].to_list()]),
+            java_binaries = ",".join([parent_path + j.short_path for j in java_files["output_jars"].to_list()]),
             scm_path = ctx.attr.scm_dir,
             scm_basename = paths.basename(ctx.attr.scm_dir),
             jar_path = jar_path,
@@ -640,10 +652,10 @@ def _sonarqube_maven_style_impl(ctx):
     module_runfiles = ctx.runfiles(files = [])
     for module in ctx.attr.modules.keys():
         module_runfiles = module_runfiles.merge(module[DefaultInfo].default_runfiles)
-
+    
     runfiles = ctx.runfiles(
         files = [ctx.executable.sonar_scanner, sq_properties_file ] + sources + test_sources + coverage_report_runfiles + deps + test_deps,
-        symlinks = ctx.attr.extra_symlinks,
+                symlinks = ctx.attr.extra_symlinks,
     ).merge(
         ctx.attr.sonar_scanner[DefaultInfo].default_runfiles,
     ).merge(
@@ -656,14 +668,10 @@ def _sonarqube_maven_style_impl(ctx):
     return [DefaultInfo(runfiles = runfiles)]
 
 _sonarqube_maven_style_attrs = dict(_COMMON_ATTRS)
-_sonarqube_maven_style_attrs.pop("srcs")
-_sonarqube_maven_style_attrs.pop("test_srcs")
 
 sonarqube_maven_style = rule(
     implementation = _sonarqube_maven_style_impl,
     attrs = dict(_sonarqube_maven_style_attrs, **{
-        "src_path": attr.string(default = "src/main/java"),
-        "test_path": attr.string(default = "src/test/java"),
         "coverage_report": attr.label(allow_files = True, mandatory = False),
         "sonar_scanner": attr.label(executable = True, default = "@bazel_sonarqube//:sonar_scanner", cfg = "exec"),
         "scm_dir": attr.string(default = ".git"),
