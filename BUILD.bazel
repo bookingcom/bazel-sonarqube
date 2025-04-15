@@ -3,9 +3,12 @@ load("@bazel_sonarqube//:defs.bzl", "sonarqube_coverage_generator_binary")
 
 bzl_library(
     name = "bzl",
-    srcs = ["defs.bzl"],
+    srcs = ["defs.bzl", "@bazel-version//:defs.bzl"],
     visibility = ["//visibility:public"],
-    deps = [],
+    deps = [
+        "@bazel_skylib//lib:paths",
+        "@bazel_skylib//lib:versions",
+    ],
 )
 
 exports_files([
