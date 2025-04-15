@@ -3,7 +3,7 @@ load("@bazel_tools//tools/build_defs/repo:utils.bzl", "maybe")
 
 def _bazel_version_impl(ctx):
     ctx.file("WORKSPACE", "workspace(name = \"{name}\")\n".format(name = ctx.name), executable = False)
-    ctx.file("BUILD.bazel", "", executable = False)
+    ctx.file("BUILD.bazel", "exports_files([\"defs.bzl\"])", executable = False)
     ctx.file("defs.bzl", "VERSION='%s'" % native.bazel_version, executable = False)
 
 _bazel_version = repository_rule(implementation = _bazel_version_impl)
